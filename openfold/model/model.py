@@ -60,7 +60,7 @@ from openfold.utils.tensor_utils import (
     dict_multimap,
     tensor_tree_map,
 )
-
+from openfold.np.protein import from_pdb_string
 
 class AlphaFold(nn.Module):
     """
@@ -280,7 +280,11 @@ class AlphaFold(nn.Module):
                 (*batch_dims, n, residue_constants.atom_type_num, 3),
                 requires_grad=False,
             )
-
+            with open("/data/jgut/template-analysis/7nlj.pdb", "r") as file:
+                pdb_string = file.read() 
+            x_prev = torch.from_numpy(from_pdb_string(pdb_string).atom_positions, ).to("cuda:5")
+            print(x_prev.size())
+            print(n)
         pseudo_beta_x_prev = pseudo_beta_fn(
             feats["aatype"], x_prev, None
         ).to(dtype=z.dtype)

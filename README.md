@@ -1,7 +1,7 @@
 ![header ](imgs/of_banner.png)
 _Figure: Comparison of OpenFold and AlphaFold2 predictions to the experimental structure of PDB 7KDX, chain B._
 
-
+# Changed openfold/model/model.py, multimers still shuffle how they want. Tested with 7nlj and 5zng.  
 # OpenFold
 
 A faithful but trainable PyTorch reproduction of DeepMind's 
