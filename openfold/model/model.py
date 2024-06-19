@@ -60,7 +60,6 @@ from openfold.utils.tensor_utils import (
     dict_multimap,
     tensor_tree_map,
 )
-from openfold.np.protein import from_pdb_string
 
 class AlphaFold(nn.Module):
     """
@@ -222,6 +221,7 @@ class AlphaFold(nn.Module):
         n = feats["target_feat"].shape[-2]
         n_seq = feats["msa_feat"].shape[-3]
         device = feats["target_feat"].device
+        disable_x_prev = feats["disable_x_prev"]
 
         # Controls whether the model uses in-place operations throughout
         # The dual condition accounts for activation checkpoints
@@ -260,7 +260,6 @@ class AlphaFold(nn.Module):
         # Unpack the recycling embeddings. Removing them from the list allows 
         # them to be freed further down in this function, saving memory
         m_1_prev, z_prev, x_prev = reversed([prevs.pop() for _ in range(3)])
-
         # Initialize the recycling embeddings, if needs be 
         if None in [m_1_prev, z_prev, x_prev]:
             # [*, N, C_m]
@@ -276,15 +275,16 @@ class AlphaFold(nn.Module):
             )
 
             # [*, N, 3]
+            if x_prev is None: # else it was given by user input
+                x_prev = z.new_zeros(
+                    (*batch_dims, n, residue_constants.atom_type_num, 3),
+                    requires_grad=False,
+                )
+        if disable_x_prev: 
             x_prev = z.new_zeros(
                 (*batch_dims, n, residue_constants.atom_type_num, 3),
                 requires_grad=False,
             )
-            with open("/data/jgut/template-analysis/7nlj.pdb", "r") as file:
-                pdb_string = file.read() 
-            x_prev = torch.from_numpy(from_pdb_string(pdb_string).atom_positions, ).to("cuda:5")
-            print(x_prev.size())
-            print(n)
         pseudo_beta_x_prev = pseudo_beta_fn(
             feats["aatype"], x_prev, None
         ).to(dtype=z.dtype)
@@ -544,9 +544,19 @@ class AlphaFold(nn.Module):
                         for which C_alpha is used instead)
                     "template_pseudo_beta_mask" ([*, N_templ, N_res])
                         Pseudo-beta mask
+                    "x_prev" ([*, N_res, 3])
+                        Positions of overridden previous structure prediction, 0 if None
+                    "disable_x_prev" 
+                        Boolean indicating if x_prev should always be overwritten by None
+                        and the default black hole initialisation.
         """
         # Initialize recycling embeddings
-        m_1_prev, z_prev, x_prev = None, None, None
+        m_1_prev, z_prev = None, None
+        x_prev = batch.pop("x_prev", None)
+        if not (x_prev is None) and len(x_prev.size())>2:
+            x_prev = x_prev[..., 0]
+        else:
+            x_prev = None
         prevs = [m_1_prev, z_prev, x_prev]
 
         is_grad_enabled = torch.is_grad_enabled()
@@ -559,7 +569,6 @@ class AlphaFold(nn.Module):
             # Select the features for the current recycling cycle
             fetch_cur_batch = lambda t: t[..., cycle_no]
             feats = tensor_tree_map(fetch_cur_batch, batch)
-
             # Enable grad iff we're training and it's the final recycling layer
             is_final_iter = cycle_no == (num_iters - 1) or early_stop
             with torch.set_grad_enabled(is_grad_enabled and is_final_iter):

@@ -143,6 +143,12 @@ def generate_feature_dict(
             alignment_dir=local_alignment_dir,
             seqemb_mode=args.use_single_seq_mode,
         )
+        if args.prev_atom_positions:
+            feature_dict = feature_dict | {"x_prev": data_processor.process_prev_x(
+                seq, args.prev_atom_positions, args.kalign_binary_path
+            )}
+        if args.disable_prev_atom_positions:
+            feature_dict = feature_dict | {"disable_x_prev": True}
     elif "multimer" in args.config_preset:
         with open(tmp_fasta_path, "w") as fp:
             fp.write(
@@ -159,7 +165,6 @@ def generate_feature_dict(
         feature_dict = data_processor.process_multiseq_fasta(
             fasta_path=tmp_fasta_path, super_alignment_dir=alignment_dir,
         )
-
     # Remove temporary FASTA file
     os.remove(tmp_fasta_path)
 
@@ -244,7 +249,6 @@ def main(args):
             data = fp.read()
 
         tags, seqs = parse_fasta(data)
-
         if not is_multimer and len(tags) != 1:
             print(
                 f"{fasta_path} contains more than one sequence but "
@@ -287,7 +291,6 @@ def main(args):
                     data_processor,
                     args,
                 )
-
                 if args.trace_model:
                     n = feature_dict["aatype"].shape[-2]
                     rounded_seqlen = round_up_seqlen(n)
@@ -299,7 +302,6 @@ def main(args):
             processed_feature_dict = feature_processor.process_features(
                 feature_dict, mode='predict', is_multimer=is_multimer
             )
-
             processed_feature_dict = {
                 k: torch.as_tensor(v, device=args.model_device)
                 for k, v in processed_feature_dict.items()
@@ -317,7 +319,6 @@ def main(args):
                         f"Tracing time: {tracing_time}"
                     )
                     cur_tracing_interval = rounded_seqlen
-
             out = run_model(model, processed_feature_dict, tag, args.output_dir)
 
             # Toss out the recycling dimensions --- we don't need them anymore
@@ -458,6 +459,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cif_output", action="store_true", default=False,
         help="Output predicted models in ModelCIF format instead of PDB format (default)"
+    )
+    parser.add_argument(
+        "--disable_prev_atom_positions", action="store_true", default=False,
+        help="Artificially disable the previous position input while recycling."
     )
     add_data_args(parser)
     args = parser.parse_args()

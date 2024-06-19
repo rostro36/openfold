@@ -18,6 +18,7 @@ import copy
 import collections
 import contextlib
 import dataclasses
+import logging
 from multiprocessing import cpu_count
 import tempfile
 from typing import Mapping, Optional, Sequence, Any, MutableMapping, Union
@@ -42,6 +43,9 @@ from openfold.np import residue_constants, protein
 FeatureDict = MutableMapping[str, np.ndarray]
 TemplateSearcher = Union[hhsearch.HHSearch, hmmsearch.Hmmsearch]
 
+logging.basicConfig()
+logger = logging.getLogger(__file__)
+logger.setLevel(level=logging.INFO)
 
 def make_template_features(
     input_sequence: str,
@@ -1014,6 +1018,24 @@ class DataPipeline:
             msa_features = self._process_msa_feats(alignment_dir, input_sequence, alignment_index)
 
         return {**pdb_feats, **template_features, **msa_features, **sequence_embedding_features}
+
+    def process_prev_x(self, query_sequence, prev_x_path, kalign_binary_path):
+        mapping = { # skip gaps
+            x: x for x, curr_char in enumerate(query_sequence) if curr_char.isalnum()
+        }
+        with open(prev_x_path, "r") as file:
+            mmcif_string = file.read()
+        parsing_result = mmcif_parsing.parse(file_id="x_prev", mmcif_string=mmcif_string)
+        mmcif_object = parsing_result.mmcif_object
+        if mmcif_object is None:
+            raise Exception(parsing_result.errors)
+        #_, alignment = _realign_pdb_template_to_query(query_sequence,"A",mmcif_object, mapping, kalign_binary_path)
+        atom_positions = mmcif_parsing.get_atom_coords(mmcif_object, "A")[0]
+        dummy = np.zeros([residue_constants.atom_type_num, 3], dtype=np.float32)
+        #padded_x_prev = np.array([dummy if end==-1 else atom_positions[end] for end in alignment.values()])
+        logger.info(f"X_prev: query len: {len(query_sequence)}, atom_positions {len(atom_positions)}" )
+        padded_x_prev = np.array([dummy if end==-1 else atom_positions[end] for end in mapping.values()])
+        return torch.from_numpy(padded_x_prev)
 
     def process_core(
         self,

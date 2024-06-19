@@ -91,12 +91,10 @@ def np_example_to_features(
     if "deletion_matrix_int" in np_example:
         np_example["deletion_matrix"] = np_example.pop(
             "deletion_matrix_int"
-        ).astype(np.float32)
-
+        ).astype(np.float32)        
     tensor_dict = np_to_tensor_dict(
         np_example=np_example, features=feature_names
     )
-
     with torch.no_grad():
         if is_multimer:
             features = input_pipeline_multimer.process_tensors_from_config(
@@ -110,7 +108,6 @@ def np_example_to_features(
                 cfg.common,
                 cfg[mode],
             )
-
     if mode == "train":
         p = torch.rand(1).item()
         use_clamped_fape_value = float(p < cfg.supervised.clamp_prob)

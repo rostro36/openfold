@@ -156,7 +156,6 @@ def ensembled_transform_fns(common_cfg, mode_cfg, ensemble_seed):
 
 def process_tensors_from_config(tensors, common_cfg, mode_cfg):
     """Based on the config, apply filters and transformations to the data."""
-
     ensemble_seed = random.randint(0, torch.iinfo(torch.int32).max)
 
     def wrap_ensemble_fn(data, i):
@@ -179,7 +178,8 @@ def process_tensors_from_config(tensors, common_cfg, mode_cfg):
         common_cfg,
         mode_cfg,
     )
-
+    x_prev = tensors.get('x_prev', torch.tensor([False]))
+    disable_x_prev = tensors.get("disable_x_prev", False) 
     tensors = compose(nonensembled)(tensors)
 
     if("no_recycling_iters" in tensors):
@@ -190,7 +190,8 @@ def process_tensors_from_config(tensors, common_cfg, mode_cfg):
     tensors = map_fn(
         lambda x: wrap_ensemble_fn(tensors, x), torch.arange(num_recycling + 1)
     )
-
+    tensors['x_prev'] = torch.stack([x_prev]*(num_recycling+1), dim=-1) 
+    tensors["disable_x_prev"] = [disable_x_prev]*(num_recycling+1)
     return tensors
 
 
