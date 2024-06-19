@@ -57,6 +57,9 @@ def add_data_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         '--release_dates_path', type=str, default=None
     )
+    parser.add_argument(
+        '--prev_atom_positions', type=str, default=None
+    )
 
 
 def get_nvidia_cc():
